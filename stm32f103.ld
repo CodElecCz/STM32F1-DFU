@@ -20,7 +20,7 @@
 /* Define memory regions. */
 MEMORY
 {
-	rom (rx) : ORIGIN = 0x08000000, LENGTH = 4K
+	rom (rx) : ORIGIN = 0x08000000, LENGTH = 8K
 	/* Reserve the last 8 bytes of RAM to save info across reboots */
 	ram (rwx) : ORIGIN = 0x20000000, LENGTH = 20k - 4
 }

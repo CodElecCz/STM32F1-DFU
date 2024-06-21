@@ -51,7 +51,7 @@ static char serial_no[25];
 #define STR(x) STR_HELPER(x)
 const char * const _usb_strings[5] = {
 	"ESTELAR", // iManufacturer
-	"SL20 DFU bootloader [" VERSION "]", // iProduct
+	"DFU bootloader [" VERSION "]", // iProduct
 	serial_no, // iSerialNumber
 	// Interface desc string
 	/* This string is used by ST Microelectronics' DfuSe utility. */
@@ -170,7 +170,8 @@ static void usbdfu_getstatus_complete(struct usb_setup_data *req) {
 			// From formula Address_Pointer + ((wBlockNum - 2)*wTransferSize)
 			uint32_t baseaddr = prog.addr + ((prog.blocknum - 2) * DFU_TRANSFER_SIZE);
 
-			if (baseaddr >= start_addr && baseaddr + prog.len <= end_addr) {
+			if (baseaddr >= start_addr && baseaddr + prog.len <= end_addr)
+			{
 				// Program buffer in one go after erasing.
 				if (!_flash_page_is_erased(baseaddr))
 					_flash_erase_page(baseaddr);
