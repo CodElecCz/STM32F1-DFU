@@ -57,8 +57,8 @@ const char * const _usb_strings[5] = {
 	/* This string is used by ST Microelectronics' DfuSe utility. */
 	/* Change check_do_erase() accordingly */
 	"@Internal Flash /" STR(FLASH_BASE_ADDR) "/"
-	  STR(FLASH_BOOTLDR_SIZE_KB) "kb,"
-	  STR(FLASH_BOOTLDR_PAYLOAD_SIZE_KB) "*kb",
+	  STR(FLASH_BOOTLDR_SIZE_KB) "*001Ka,"
+	  STR(FLASH_BOOTLDR_PAYLOAD_SIZE_KB) "*001Kg",
 	// Config desc string
 	"Bootloader config: "
 	#ifdef ENABLE_WATCHDOG
@@ -414,30 +414,22 @@ typedef struct
 	volatile uint32_t CALIB;                  /*!< Offset: 0x00C (R/ )  SysTick Calibration Register */
 } SysTick_Type;
 
-#define SCS_BASE            (0xE000E000UL)                            /*!< System Control Space Base Address */
-#define SysTick_BASE        (SCS_BASE +  0x0010UL)                    /*!< SysTick Base Address */
-#define SysTick             ((SysTick_Type   *)     SysTick_BASE  )   /*!< SysTick configuration struct */
-
-/* SysTick Control / Status Register Definitions */
 #define SysTick_CTRL_COUNTFLAG_Pos         16U                                            /*!< SysTick CTRL: COUNTFLAG Position */
 #define SysTick_CTRL_COUNTFLAG_Msk         (1UL << SysTick_CTRL_COUNTFLAG_Pos)            /*!< SysTick CTRL: COUNTFLAG Mask */
-
 #define SysTick_CTRL_CLKSOURCE_Pos          2U                                            /*!< SysTick CTRL: CLKSOURCE Position */
 #define SysTick_CTRL_CLKSOURCE_Msk         (1UL << SysTick_CTRL_CLKSOURCE_Pos)            /*!< SysTick CTRL: CLKSOURCE Mask */
-
 #define SysTick_CTRL_TICKINT_Pos            1U                                            /*!< SysTick CTRL: TICKINT Position */
 #define SysTick_CTRL_TICKINT_Msk           (1UL << SysTick_CTRL_TICKINT_Pos)              /*!< SysTick CTRL: TICKINT Mask */
-
 #define SysTick_CTRL_ENABLE_Pos             0U                                            /*!< SysTick CTRL: ENABLE Position */
 #define SysTick_CTRL_ENABLE_Msk            (1UL /*<< SysTick_CTRL_ENABLE_Pos*/)           /*!< SysTick CTRL: ENABLE Mask */
-
-/* SysTick Reload Register Definitions */
 #define SysTick_LOAD_RELOAD_Pos             0U                                            /*!< SysTick LOAD: RELOAD Position */
 #define SysTick_LOAD_RELOAD_Msk            (0xFFFFFFUL /*<< SysTick_LOAD_RELOAD_Pos*/)    /*!< SysTick LOAD: RELOAD Mask */
-
-/* SysTick Current Register Definitions */
 #define SysTick_VAL_CURRENT_Pos             0U                                            /*!< SysTick VAL: CURRENT Position */
 #define SysTick_VAL_CURRENT_Msk            (0xFFFFFFUL /*<< SysTick_VAL_CURRENT_Pos*/)    /*!< SysTick VAL: CURRENT Mask */
+
+#define SCS_BASE            				(0xE000E000UL)                            /*!< System Control Space Base Address */
+#define SysTick_BASE        				(SCS_BASE +  0x0010UL)                    /*!< SysTick Base Address */
+#define SysTick             				((SysTick_Type   *)     SysTick_BASE  )   /*!< SysTick configuration struct */
 
 uint32_t systick_setup(uint32_t ticks)
 {
@@ -464,6 +456,8 @@ bool validate_checksum(const uint32_t * const image, unsigned size)
 
 	return xorv == 0;
 }
+
+uint32_t systick_get();
 
 int main(void)
 {
