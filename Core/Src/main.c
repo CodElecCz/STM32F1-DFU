@@ -61,21 +61,21 @@ const char * const _usb_strings[5] = {
 	  STR(FLASH_BOOTLDR_PAYLOAD_SIZE_KB) "*001Kg",
 	// Config desc string
 	"Bootloader config: "
-	#ifdef ENABLE_WATCHDOG
+#ifdef ENABLE_WATCHDOG
 	"WtDg[" STR(ENABLE_WATCHDOG) "s] "
-	#endif
-	#ifdef ENABLE_SAFEWRITE
+#endif
+#ifdef ENABLE_SAFEWRITE
 	"SafeWr "
-	#endif
-	#ifdef ENABLE_WRITEPROT
+#endif
+#ifdef ENABLE_WRITEPROT
 	"ROboot "
-	#endif
-	#ifdef ENABLE_PROTECTIONS
+#endif
+#ifdef ENABLE_PROTECTIONS
 	"RDO/DBG ROboot "
-	#endif
-	#ifdef ENABLE_CHECKSUM
+#endif
+#ifdef ENABLE_CHECKSUM
 	"FW-CRC "
-	#endif
+#endif
 };
 
 static const char hcharset[16] = "0123456789ABCDEF";
@@ -92,7 +92,8 @@ static void get_dev_unique_id(char *s)
 
 static uint8_t usbdfu_getstatus(uint32_t *bwPollTimeout)
 {
-	switch (usbdfu_state) {
+	switch (usbdfu_state)
+	{
 	case STATE_DFU_DNLOAD_SYNC:
 		usbdfu_state = STATE_DFU_DNBUSY;
 		*bwPollTimeout = 100;
@@ -242,7 +243,8 @@ usbdfu_control_request(struct usb_setup_data *req, uint16_t *len, void (**comple
 			usbd_control_buffer[2] = CMD_ERASE;
 			*len = 3;
 			return USBD_REQ_HANDLED;
-		} else
+		}
+		else
 		{
 			// Send back data if only if we enabled that.
 #ifndef ENABLE_DFU_UPLOAD
@@ -253,28 +255,32 @@ usbdfu_control_request(struct usb_setup_data *req, uint16_t *len, void (**comple
 			uint32_t baseaddr = prog.addr + ((req->wValue - 2) * DFU_TRANSFER_SIZE);
 			const uint32_t start_addr = FLASH_BASE_ADDR + (FLASH_BOOTLDR_SIZE_KB*1024);
 			const uint32_t end_addr   = FLASH_BASE_ADDR + (        FLASH_SIZE_KB*1024);
-			if (baseaddr >= start_addr && baseaddr + DFU_TRANSFER_SIZE <= end_addr) {
+			if (baseaddr >= start_addr && baseaddr + DFU_TRANSFER_SIZE <= end_addr)
+			{
 				memcpy(usbd_control_buffer, (void*)baseaddr, DFU_TRANSFER_SIZE);
 				*len = DFU_TRANSFER_SIZE;
-			} else {
+			}
+			else
+			{
 				usbdfu_state = STATE_DFU_ERROR;
 				*len = 0;
 			}
 #endif
 		}
 		return USBD_REQ_HANDLED;
-	case DFU_GETSTATUS: {
-		// Perform the action and register complete callback.
-		uint32_t bwPollTimeout = 0; /* 24-bit integer in DFU class spec */
-		usbd_control_buffer[0] = usbdfu_getstatus(&bwPollTimeout);
-		usbd_control_buffer[1] = bwPollTimeout & 0xFF;
-		usbd_control_buffer[2] = (bwPollTimeout >> 8) & 0xFF;
-		usbd_control_buffer[3] = (bwPollTimeout >> 16) & 0xFF;
-		usbd_control_buffer[4] = usbdfu_state;
-		usbd_control_buffer[5] = 0; /* iString not used here */
-		*len = 6;
-		*complete = usbdfu_getstatus_complete;
-		return USBD_REQ_HANDLED;
+	case DFU_GETSTATUS:
+		{
+			// Perform the action and register complete callback.
+			uint32_t bwPollTimeout = 0; /* 24-bit integer in DFU class spec */
+			usbd_control_buffer[0] = usbdfu_getstatus(&bwPollTimeout);
+			usbd_control_buffer[1] = bwPollTimeout & 0xFF;
+			usbd_control_buffer[2] = (bwPollTimeout >> 8) & 0xFF;
+			usbd_control_buffer[3] = (bwPollTimeout >> 16) & 0xFF;
+			usbd_control_buffer[4] = usbdfu_state;
+			usbd_control_buffer[5] = 0; /* iString not used here */
+			*len = 6;
+			*complete = usbdfu_getstatus_complete;
+			return USBD_REQ_HANDLED;
 		}
 	case DFU_GETSTATE:
 		// Return state with no state transition.
@@ -611,6 +617,7 @@ int main(void)
 		// Poll based approach
 		do_usb_poll();
 	}
+
 	__builtin_unreachable();
 }
 

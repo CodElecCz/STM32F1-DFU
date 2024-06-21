@@ -106,21 +106,22 @@ void usb_init() {
 	SET_REG(USB_ISTR_REG, 0);
 
 	/* Enable RESET, SUSPEND, RESUME and CTR interrupts. */
-	SET_REG(USB_CNTR_REG, USB_CNTR_RESETM | USB_CNTR_CTRM |
-		USB_CNTR_SUSPM | USB_CNTR_WKUPM);
+	SET_REG(USB_CNTR_REG, USB_CNTR_RESETM | USB_CNTR_CTRM | USB_CNTR_SUSPM | USB_CNTR_WKUPM);
 }
 
 #define MIN(a,b) (((a) < (b)) ? (a) : (b))
 #define USBD_PM_TOP 0x40
 
-static void st_usbfs_copy_to_pm(volatile void *vPM, const void *buf, uint16_t len) {
+static void st_usbfs_copy_to_pm(volatile void *vPM, const void *buf, uint16_t len)
+{
 	const uint16_t *lbuf = buf;
 	volatile uint32_t *PM = vPM;
 	for (len = (len + 1) >> 1; len; len--)
 		*PM++ = *lbuf++;
 }
 
-static void st_usbfs_copy_from_pm(void *buf, const volatile void *vPM, uint16_t len) {
+static void st_usbfs_copy_from_pm(void *buf, const volatile void *vPM, uint16_t len)
+{
 	uint16_t *lbuf = buf;
 	const volatile uint16_t *PM = vPM;
 	uint8_t odd = len & 1;
@@ -132,7 +133,8 @@ static void st_usbfs_copy_from_pm(void *buf, const volatile void *vPM, uint16_t 
 		*(uint8_t *) lbuf = *(uint8_t *) PM;
 }
 
-static uint16_t _usbd_ep_write_packet(uint8_t addr, const void *buf, uint16_t len) {
+static uint16_t _usbd_ep_write_packet(uint8_t addr, const void *buf, uint16_t len)
+{
 	addr &= 0x7F;
 
 	if ((*USB_EP_REG(addr) & USB_EP_TX_STAT) == USB_EP_TX_STAT_VALID)
@@ -145,7 +147,8 @@ static uint16_t _usbd_ep_write_packet(uint8_t addr, const void *buf, uint16_t le
 	return len;
 }
 
-static uint16_t _usbd_ep_read_packet(uint8_t addr, void *buf, uint16_t len) {
+static uint16_t _usbd_ep_read_packet(uint8_t addr, void *buf, uint16_t len)
+{
 	if ((*USB_EP_REG(addr) & USB_EP_RX_STAT) == USB_EP_RX_STAT_VALID)
 		return 0;
 
@@ -153,13 +156,15 @@ static uint16_t _usbd_ep_read_packet(uint8_t addr, void *buf, uint16_t len) {
 	st_usbfs_copy_from_pm(buf, USB_GET_EP_RX_BUFF(addr), len);
 	USB_CLR_EP_RX_CTR(addr);
 
-	if (!usb_force_nak[addr]) {
+	if (!usb_force_nak[addr])
+	{
 		USB_SET_EP_RX_STAT(addr, USB_EP_RX_STAT_VALID);
 	}
 	return len;
 }
 
-static void _usbd_ep_nak_set(uint8_t addr, uint8_t nak) {
+static void _usbd_ep_nak_set(uint8_t addr, uint8_t nak)
+{
 	// It does not make sense to force NAK on IN endpoints.
 	if (addr & 0x80)
 		return;
@@ -171,11 +176,13 @@ static void _usbd_ep_nak_set(uint8_t addr, uint8_t nak) {
 		USB_SET_EP_RX_STAT(addr, USB_EP_RX_STAT_VALID);
 }
 
-void _ep_stall_set(uint8_t addr, uint8_t stall) {
+void _ep_stall_set(uint8_t addr, uint8_t stall)
+{
 	if (addr == 0)
 		USB_SET_EP_TX_STAT(addr, stall ? USB_EP_TX_STAT_STALL : USB_EP_TX_STAT_NAK);
 
-	if (addr & 0x80) {
+	if (addr & 0x80)
+	{
 		addr &= 0x7F;
 
 		USB_SET_EP_TX_STAT(addr, stall ? USB_EP_TX_STAT_STALL : USB_EP_TX_STAT_NAK);
@@ -183,7 +190,9 @@ void _ep_stall_set(uint8_t addr, uint8_t stall) {
 		// Reset to DATA0 if clearing stall condition.
 		if (!stall)
 			USB_CLR_EP_TX_DTOG(addr);
-	} else {
+	}
+	else
+	{
 		// Reset to DATA0 if clearing stall condition.
 		if (!stall)
 			USB_CLR_EP_RX_DTOG(addr);
@@ -192,32 +201,41 @@ void _ep_stall_set(uint8_t addr, uint8_t stall) {
 	}
 }
 
-uint8_t _ep_stall_get(uint8_t addr) {
-	if (addr & 0x80) {
+uint8_t _ep_stall_get(uint8_t addr)
+{
+	if (addr & 0x80)
+	{
 		if ((*USB_EP_REG(addr & 0x7F) & USB_EP_TX_STAT) == USB_EP_TX_STAT_STALL)
 			return 1;
-	} else {
+	}
+	else
+	{
 		if ((*USB_EP_REG(addr) & USB_EP_RX_STAT) == USB_EP_RX_STAT_STALL)
 			return 1;
 	}
 	return 0;
 }
 
-static inline void _stall_transaction() {
+static inline void _stall_transaction()
+{
 	_ep_stall_set(0, 1);
 	usb_fsm_state = IDLE;
 }
 
 
 // Sends or keeps sending data to host
-static void usb_control_send_chunk() {
-	if (dev_desc.bMaxPacketSize0 < datasize) {
+static void usb_control_send_chunk()
+{
+	if (dev_desc.bMaxPacketSize0 < datasize)
+	{
 		/* Data stage, normal transmission */
 		_usbd_ep_write_packet(0, &usbd_control_buffer[dataoff], dev_desc.bMaxPacketSize0);
 		usb_fsm_state = DATA_IN;
 		dataoff += dev_desc.bMaxPacketSize0;
 		datasize -= dev_desc.bMaxPacketSize0;
-	} else {
+	}
+	else
+	{
 		/* Data stage, end of transmission */
 		_usbd_ep_write_packet(0, &usbd_control_buffer[dataoff], datasize);
 
@@ -228,11 +246,13 @@ static void usb_control_send_chunk() {
 }
 
 // Receives data from host
-static int usb_control_recv_chunk() {
+static int usb_control_recv_chunk()
+{
 	uint16_t packetsize = MIN(dev_desc.bMaxPacketSize0, usb_req.wLength - datasize);
 	uint16_t size = _usbd_ep_read_packet(0, &usbd_control_buffer[datasize], packetsize);
 
-	if (size != packetsize) {
+	if (size != packetsize)
+	{
 		_stall_transaction();
 		return -1;
 	}
@@ -241,14 +261,16 @@ static int usb_control_recv_chunk() {
 	return packetsize;
 }
 
-static enum usbd_request_return_codes usb_standard_get_descriptor() {
+static enum usbd_request_return_codes usb_standard_get_descriptor()
+{
 	int array_idx, descr_idx, descr_type;
 	struct usb_string_descriptor *sd = (struct usb_string_descriptor *)usbd_control_buffer;
 
 	descr_idx = usb_req.wValue & 0xFF;
 	descr_type = usb_req.wValue >> 8;
 
-	switch (descr_type) {
+	switch (descr_type)
+	{
 	case USB_DT_DEVICE:
 		memcpy(usbd_control_buffer, &dev_desc, sizeof(dev_desc));
 		datasize = sizeof(dev_desc);
@@ -263,14 +285,18 @@ static enum usbd_request_return_codes usb_standard_get_descriptor() {
 			/* Send sane Language ID descriptor... */
 			sd->wData[0] = USB_LANGID_ENGLISH_US;
 			datasize = sd->bLength = sizeof(sd->bLength) + sizeof(sd->bDescriptorType) + sizeof(sd->wData[0]);
-		#ifdef WINUSB_SUPPORT
-		} else if (descr_idx == 0xEE) {
+#ifdef WINUSB_SUPPORT
+		}
+		else if (descr_idx == 0xEE)
+		{
 			const char winusbstr[] = {'M','S','F','T','1','0','0','A','\0'};
 			for (int i = 0; i < sizeof(winusbstr); i++)
 				sd->wData[i] = winusbstr[i];
 			datasize = sd->bLength = sizeof(sd->bLength) + sizeof(sd->bDescriptorType) + sizeof(winusbstr)*2;
-		#endif
-		} else {
+#endif
+		}
+		else
+		{
 			array_idx = descr_idx - 1;
 
 			/* Check that string index is in range. */
@@ -297,8 +323,10 @@ static enum usbd_request_return_codes usb_standard_get_descriptor() {
 	return USBD_REQ_NOTSUPP;
 }
 
-enum usbd_request_return_codes _usbd_standard_request_device() {
-	switch (usb_req.bRequest) {
+enum usbd_request_return_codes _usbd_standard_request_device()
+{
+	switch (usb_req.bRequest)
+	{
 	case USB_REQ_SET_ADDRESS:
 		/* The actual address is only latched at the STATUS IN stage. */
 		if ((usb_req.bmRequestType != 0) || (usb_req.wValue >= 128))
@@ -310,7 +338,8 @@ enum usbd_request_return_codes _usbd_standard_request_device() {
 		return USBD_REQ_HANDLED;
 	case USB_REQ_SET_CONFIGURATION:
 		// Reset all endpoints
-		if (usb_req.wValue == config_desc.config.bConfigurationValue) {
+		if (usb_req.wValue == config_desc.config.bConfigurationValue)
+		{
 			for (int i = 1; i < 8; i++) {
 				USB_SET_EP_TX_STAT(i, USB_EP_TX_STAT_DISABLED);
 				USB_SET_EP_RX_STAT(i, USB_EP_RX_STAT_DISABLED);
@@ -336,8 +365,10 @@ enum usbd_request_return_codes _usbd_standard_request_device() {
 	return USBD_REQ_NOTSUPP;
 }
 
-enum usbd_request_return_codes _usbd_standard_request_interface() {
-	switch (usb_req.bRequest) {
+enum usbd_request_return_codes _usbd_standard_request_interface()
+{
+	switch (usb_req.bRequest)
+	{
 	case USB_REQ_GET_INTERFACE:
 		// command = usb_standard_get_interface;
 		usbd_control_buffer[0] = 1;
@@ -355,8 +386,10 @@ enum usbd_request_return_codes _usbd_standard_request_interface() {
 	return USBD_REQ_NOTSUPP;
 }
 
-enum usbd_request_return_codes _usbd_standard_request_endpoint() {
-	switch (usb_req.bRequest) {
+enum usbd_request_return_codes _usbd_standard_request_endpoint()
+{
+	switch (usb_req.bRequest)
+	{
 	case USB_REQ_CLEAR_FEATURE:
 	case USB_REQ_SET_FEATURE:
 		if (usb_req.wValue == USB_FEAT_ENDPOINT_HALT)
@@ -373,11 +406,13 @@ enum usbd_request_return_codes _usbd_standard_request_endpoint() {
 	return USBD_REQ_NOTSUPP;
 }
 
-enum usbd_request_return_codes _usbd_standard_request() {
+enum usbd_request_return_codes _usbd_standard_request()
+{
 	if ((usb_req.bmRequestType & USB_REQ_TYPE_TYPE) != USB_REQ_TYPE_STANDARD)
 		return USBD_REQ_NOTSUPP;
 
-	switch (usb_req.bmRequestType & USB_REQ_TYPE_RECIPIENT) {
+	switch (usb_req.bmRequestType & USB_REQ_TYPE_RECIPIENT)
+	{
 	case USB_REQ_TYPE_DEVICE:
 		return _usbd_standard_request_device();
 	case USB_REQ_TYPE_INTERFACE:
@@ -388,18 +423,20 @@ enum usbd_request_return_codes _usbd_standard_request() {
 	return USBD_REQ_NOTSUPP;
 }
 
-static enum usbd_request_return_codes usb_control_request_dispatch() {
+static enum usbd_request_return_codes usb_control_request_dispatch()
+{
 	// Filter out
 	const uint8_t type = USB_REQ_TYPE_CLASS | USB_REQ_TYPE_INTERFACE;
 	const uint8_t mask = USB_REQ_TYPE_TYPE | USB_REQ_TYPE_RECIPIENT;
-	if ((usb_req.bmRequestType & mask) == type) {
+	if ((usb_req.bmRequestType & mask) == type)
+	{
 		datasize = usb_req.wLength;
 		int result = usbdfu_control_request(&usb_req, &datasize, &usb_complete_cb);
 		if (result == USBD_REQ_HANDLED || result == USBD_REQ_NOTSUPP)
 			return result;
 	}
 
-	#ifdef WINUSB_SUPPORT
+#ifdef WINUSB_SUPPORT
 	const uint8_t wtype = USB_REQ_TYPE_VENDOR | USB_REQ_TYPE_DEVICE;
 	const uint8_t wmask = USB_REQ_TYPE_TYPE | USB_REQ_TYPE_RECIPIENT;
 	if ((usb_req.bmRequestType & wmask) == wtype && usb_req.bRequest == 0x41 /* A */) {
@@ -421,7 +458,7 @@ static enum usbd_request_return_codes usb_control_request_dispatch() {
 		datasize = sizeof(winusb_desc);
 		return USBD_REQ_HANDLED;
 	}
-	#endif
+#endif
 
 	/* Try standard request if not already handled. */
 	return _usbd_standard_request();
@@ -436,19 +473,24 @@ static uint8_t _needs_zlp(uint16_t len, uint16_t wLength, uint8_t ep_size) {
 	return 0;
 }
 
-static void _usb_control_setup_read() {
+static void _usb_control_setup_read()
+{
 	unsigned maxdataout = usb_req.wLength;
 
 	dataoff = 0; // Restart transmission counter
-	if (usb_control_request_dispatch()) {
+	if (usb_control_request_dispatch())
+	{
 		if (datasize > maxdataout)  // Truncate output
 			datasize = maxdataout;
 
-		if (maxdataout) {
+		if (maxdataout)
+		{
 			usb_needs_zlp = _needs_zlp(datasize, maxdataout, dev_desc.bMaxPacketSize0);
 			/* Go to data out stage if handled. */
 			usb_control_send_chunk();
-		} else {
+		}
+		else
+		{
 			/* Go to status stage if handled. */
 			_usbd_ep_write_packet(0, 0, 0);
 			usb_fsm_state = STATUS_IN;
@@ -458,9 +500,11 @@ static void _usb_control_setup_read() {
 		_stall_transaction();  // Stall endpoint on failure.
 }
 
-static void _usb_control_setup_write() {
+static void _usb_control_setup_write()
+{
 	// Stall EP if we have too much data?
-	if (usb_req.wLength > sizeof(usbd_control_buffer)) {
+	if (usb_req.wLength > sizeof(usbd_control_buffer))
+	{
 		_stall_transaction();
 		return;
 	}
@@ -476,11 +520,13 @@ static void _usb_control_setup_write() {
 	_usbd_ep_nak_set(0, 0);
 }
 
-static void _usbd_control_setup() {
+static void _usbd_control_setup()
+{
 	usb_complete_cb = 0;
 	_usbd_ep_nak_set(0, 1);
 
-	if (_usbd_ep_read_packet(0, &usb_req, sizeof(usb_req)) != sizeof(usb_req)) {
+	if (_usbd_ep_read_packet(0, &usb_req, sizeof(usb_req)) != sizeof(usb_req))
+	{
 		_stall_transaction();
 		return;
 	}
@@ -491,8 +537,10 @@ static void _usbd_control_setup() {
 		_usb_control_setup_write();
 }
 
-static void _usbd_control_out() {
-	switch (usb_fsm_state) {
+static void _usbd_control_out()
+{
+	switch (usb_fsm_state)
+	{
 	case DATA_OUT:
 		if (usb_control_recv_chunk() < 0)
 			break;
@@ -528,8 +576,10 @@ static void _usbd_control_out() {
 	}
 }
 
-static void _usbd_control_in() {
-	switch (usb_fsm_state) {
+static void _usbd_control_in()
+{
+	switch (usb_fsm_state)
+	{
 	case DATA_IN:
 		usb_control_send_chunk();
 		break;
@@ -553,21 +603,27 @@ static void _usbd_control_in() {
 	}
 }
 
-void _set_ep_rx_bufsize(uint8_t ep, uint32_t size) {
+void _set_ep_rx_bufsize(uint8_t ep, uint32_t size)
+{
 	if (size > 62) {
-		if (size & 0x1f) {
+		if (size & 0x1f)
+		{
 			size -= 32;
 		}
 		USB_SET_EP_RX_COUNT(ep, (size << 5) | 0x8000);
-	} else {
-		if (size & 1) {
+	}
+	else
+	{
+		if (size & 1)
+		{
 			size++;
 		}
 		USB_SET_EP_RX_COUNT(ep, size << 10);
 	}
 }
 
-void _usbd_ep_setup(uint8_t addr, uint8_t type, uint16_t max_size) {
+void _usbd_ep_setup(uint8_t addr, uint8_t type, uint16_t max_size)
+{
 	/* Translate USB standard type codes to STM32. */
 	const uint16_t typelookup[] = {
 		[USB_ENDPOINT_ATTR_CONTROL] = USB_EP_TYPE_CONTROL,
@@ -582,14 +638,16 @@ void _usbd_ep_setup(uint8_t addr, uint8_t type, uint16_t max_size) {
 	USB_SET_EP_ADDR(addr, addr);
 	USB_SET_EP_TYPE(addr, typelookup[type]);
 
-	if (dir || (addr == 0)) {
+	if (dir || (addr == 0))
+	{
 		USB_SET_EP_TX_ADDR(addr, usb_pm_top);
 		USB_CLR_EP_TX_DTOG(addr);
 		USB_SET_EP_TX_STAT(addr, USB_EP_TX_STAT_NAK);
 		usb_pm_top += max_size;
 	}
 
-	if (!dir) {
+	if (!dir)
+	{
 		USB_SET_EP_RX_ADDR(addr, usb_pm_top);
 		_set_ep_rx_bufsize(addr, max_size);
 		USB_CLR_EP_RX_DTOG(addr);
@@ -598,10 +656,12 @@ void _usbd_ep_setup(uint8_t addr, uint8_t type, uint16_t max_size) {
 	}
 }
 
-void do_usb_poll() {
+void do_usb_poll()
+{
 	uint16_t istr = *USB_ISTR_REG;
 
-	if (istr & USB_ISTR_RESET) {
+	if (istr & USB_ISTR_RESET)
+	{
 		USB_CLR_ISTR_RESET();
 		usb_pm_top = USBD_PM_TOP;
 
@@ -612,14 +672,18 @@ void do_usb_poll() {
 		return;
 	}
 
-	if (istr & USB_ISTR_CTR) {
+	if (istr & USB_ISTR_CTR)
+	{
 		uint8_t ep = istr & USB_ISTR_EP_ID;
-		if (istr & USB_ISTR_DIR) {
+		if (istr & USB_ISTR_DIR)
+		{
 			if (*USB_EP_REG(ep) & USB_EP_SETUP)
 				_usbd_control_setup();
 			else
 				_usbd_control_out();
-		} else {
+		}
+		else
+		{
 			USB_CLR_EP_TX_CTR(ep);
 			_usbd_control_in();
 		}
