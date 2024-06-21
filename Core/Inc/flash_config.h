@@ -3,7 +3,10 @@
 #define FLASH_BOOTLDR_PAYLOAD_SIZE_KB 	124
 #define FLASH_BOOTLDR_SIZE_KB 			4
 
-#define USB_VID 	0xdead
-#define USB_PID		0xca5d
+#define USB_VID 	0x0483
+#define USB_PID		0xDF11
 
-#define VERSION		"02.00"
+#define WINUSB_SUPPORT					1
+#define ENABLE_DFU_UPLOAD				1
+
+#define VERSION		"01.00"

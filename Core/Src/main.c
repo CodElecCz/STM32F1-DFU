@@ -51,14 +51,14 @@ static char serial_no[25];
 #define STR(x) STR_HELPER(x)
 const char * const _usb_strings[5] = {
 	"ESTELAR", // iManufacturer
-	"DFU bootloader [" VERSION "]", // iProduct
+	"SL20 DFU bootloader [" VERSION "]", // iProduct
 	serial_no, // iSerialNumber
 	// Interface desc string
 	/* This string is used by ST Microelectronics' DfuSe utility. */
 	/* Change check_do_erase() accordingly */
 	"@Internal Flash /" STR(FLASH_BASE_ADDR) "/"
-	  STR(FLASH_BOOTLDR_SIZE_KB) "*001Ka,"
-	  STR(FLASH_BOOTLDR_PAYLOAD_SIZE_KB) "*001Kg",
+	  STR(FLASH_BOOTLDR_SIZE_KB) "kb,"
+	  STR(FLASH_BOOTLDR_PAYLOAD_SIZE_KB) "*kb",
 	// Config desc string
 	"Bootloader config: "
 	#ifdef ENABLE_WATCHDOG
@@ -78,7 +78,7 @@ const char * const _usb_strings[5] = {
 	#endif
 };
 
-static const char hcharset[16] = "0123456789abcdef";
+static const char hcharset[16] = "0123456789ABCDEF";
 static void get_dev_unique_id(char *s) {
 	volatile uint8_t *unique_id = (volatile uint8_t *)0x1FFFF7E8;
 	/* Fetch serial number from chip's unique ID */
@@ -487,8 +487,7 @@ int main(void) {
 			volatile uint32_t *_csb_vtor = (uint32_t*)0xE000ED08U;
 			*_csb_vtor = APP_ADDRESS & 0xFFFF;
 			// Initialise master stack pointer.
-			__asm__ volatile("msr msp, %0"::"g"
-					 (*(volatile uint32_t *)APP_ADDRESS));
+			__asm__ volatile("msr msp, %0"::"g"(*(volatile uint32_t *)APP_ADDRESS));
 			// Jump to application.
 			(*(void (**)())(APP_ADDRESS + 4))();
 		}

@@ -2,7 +2,7 @@
 #ifndef __REBOOT__HH__
 #define __REBOOT__HH__
 
-// Points to the bottom of the stack, we should have 8 bytes free there
+// Points to the bottom of the stack, we should have 4 bytes free there
 extern uint32_t _stack;
 
 // Reboots the system into the bootloader, making sure
