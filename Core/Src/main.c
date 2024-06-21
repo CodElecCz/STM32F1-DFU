@@ -79,16 +79,19 @@ const char * const _usb_strings[5] = {
 };
 
 static const char hcharset[16] = "0123456789ABCDEF";
-static void get_dev_unique_id(char *s) {
+static void get_dev_unique_id(char *s)
+{
 	volatile uint8_t *unique_id = (volatile uint8_t *)0x1FFFF7E8;
 	/* Fetch serial number from chip's unique ID */
-	for (int i = 0; i < 24; i += 2) {
+	for (int i = 0; i < 24; i += 2)
+	{
 		s[i]   = hcharset[(*unique_id >> 4) & 0xF];
 		s[i+1] = hcharset[*unique_id++ & 0xF];
 	}
 }
 
-static uint8_t usbdfu_getstatus(uint32_t *bwPollTimeout) {
+static uint8_t usbdfu_getstatus(uint32_t *bwPollTimeout)
+{
 	switch (usbdfu_state) {
 	case STATE_DFU_DNLOAD_SYNC:
 		usbdfu_state = STATE_DFU_DNBUSY;
@@ -105,7 +108,8 @@ static uint8_t usbdfu_getstatus(uint32_t *bwPollTimeout) {
 	}
 }
 
-static void _full_system_reset() {
+static void _full_system_reset()
+{
 	// Reset and wait for it!
 	volatile uint32_t *_scb_aircr = (uint32_t*)0xE000ED0CU;
 	*_scb_aircr = 0x05FA0000 | 0x4;
@@ -128,32 +132,40 @@ static void usbdfu_getstatus_complete(struct usb_setup_data *req) {
 	const uint32_t start_addr = FLASH_BASE_ADDR + (FLASH_BOOTLDR_SIZE_KB*1024);
 	const uint32_t end_addr   = FLASH_BASE_ADDR + (        FLASH_SIZE_KB*1024);
 
-	switch (usbdfu_state) {
+	switch (usbdfu_state)
+	{
 	case STATE_DFU_DNBUSY:
 		_flash_unlock();
-		if (prog.blocknum == 0) {
-			switch (prog.buf[0]) {
-			case CMD_ERASE: {
-				#ifdef ENABLE_SAFEWRITE
-				check_do_erase();
-				#endif
+		if (prog.blocknum == 0)
+		{
+			switch (prog.buf[0])
+			{
+			case CMD_ERASE:
+				{
+#ifdef ENABLE_SAFEWRITE
+					check_do_erase();
+#endif
 
-				// Clear this page here.
-				uint32_t baseaddr = *(uint32_t *)(prog.buf + 1);
-				if (baseaddr >= start_addr && baseaddr + DFU_TRANSFER_SIZE <= end_addr) {
-					if (!_flash_page_is_erased(baseaddr))
-						_flash_erase_page(baseaddr);
+					// Clear this page here.
+					uint32_t baseaddr = *(uint32_t *)(prog.buf + 1);
+					if (baseaddr >= start_addr && baseaddr + DFU_TRANSFER_SIZE <= end_addr)
+					{
+						if (!_flash_page_is_erased(baseaddr))
+							_flash_erase_page(baseaddr);
+					}
 				}
-				} break;
+				break;
 			case CMD_SETADDR:
 				// Assuming little endian here.
 				prog.addr = *(uint32_t *)(prog.buf + 1);
 				break;
 			}
-		} else {
-			#ifdef ENABLE_SAFEWRITE
+		}
+		else
+		{
+#ifdef ENABLE_SAFEWRITE
 			check_do_erase();
-			#endif
+#endif
 
 			// From formula Address_Pointer + ((wBlockNum - 2)*wTransferSize)
 			uint32_t baseaddr = prog.addr + ((prog.blocknum - 2) * DFU_TRANSFER_SIZE);
@@ -181,16 +193,20 @@ static void usbdfu_getstatus_complete(struct usb_setup_data *req) {
 }
 
 enum usbd_request_return_codes
-usbdfu_control_request(struct usb_setup_data *req,
-		uint16_t *len, void (**complete)(struct usb_setup_data *req)) {
-	switch (req->bRequest) {
+usbdfu_control_request(struct usb_setup_data *req, uint16_t *len, void (**complete)(struct usb_setup_data *req))
+{
+	switch (req->bRequest)
+	{
 	case DFU_DNLOAD:
-		if ((len == NULL) || (*len == 0)) {
+		if ((len == NULL) || (*len == 0))
+		{
 			// wLength = 0 means leave DFU
 			usbdfu_state = STATE_DFU_MANIFEST_SYNC;
 			*complete = usbdfu_getstatus_complete;
 			return USBD_REQ_HANDLED;
-		} else {
+		}
+		else
+		{
 			/* Copy download data for use on GET_STATUS. */
 			prog.blocknum = req->wValue;
 			// Beware overflows!
@@ -217,19 +233,21 @@ usbdfu_control_request(struct usb_setup_data *req,
 	case DFU_UPLOAD:
 		// Send data back to host by reading the image.
 		usbdfu_state = STATE_DFU_UPLOAD_IDLE;
-		if (!req->wValue) {
+		if (!req->wValue)
+		{
 			// Send back supported commands.
 			usbd_control_buffer[0] = 0x00;
 			usbd_control_buffer[1] = CMD_SETADDR;
 			usbd_control_buffer[2] = CMD_ERASE;
 			*len = 3;
 			return USBD_REQ_HANDLED;
-		} else {
+		} else
+		{
 			// Send back data if only if we enabled that.
-			#ifndef ENABLE_DFU_UPLOAD
+#ifndef ENABLE_DFU_UPLOAD
 			usbdfu_state = STATE_DFU_ERROR;
 			*len = 0;
-			#else
+#else
 			// From formula Address_Pointer + ((wBlockNum - 2)*wTransferSize)
 			uint32_t baseaddr = prog.addr + ((req->wValue - 2) * DFU_TRANSFER_SIZE);
 			const uint32_t start_addr = FLASH_BASE_ADDR + (FLASH_BOOTLDR_SIZE_KB*1024);
@@ -241,7 +259,7 @@ usbdfu_control_request(struct usb_setup_data *req,
 				usbdfu_state = STATE_DFU_ERROR;
 				*len = 0;
 			}
-			#endif
+#endif
 		}
 		return USBD_REQ_HANDLED;
 	case DFU_GETSTATUS: {
@@ -388,7 +406,57 @@ static void clock_setup_in_hse_8mhz_out_72mhz() {
     RCC_CFGR = (RCC_CFGR & ~RCC_CFGR_SW) | (RCC_CFGR_SW_SYSCLKSEL_PLLCLK << RCC_CFGR_SW_SHIFT);
 }
 
-bool validate_checksum(const uint32_t * const image, unsigned size) {
+typedef struct
+{
+	volatile uint32_t CTRL;                   /*!< Offset: 0x000 (R/W)  SysTick Control and Status Register */
+	volatile uint32_t LOAD;                   /*!< Offset: 0x004 (R/W)  SysTick Reload Value Register */
+	volatile uint32_t VAL;                    /*!< Offset: 0x008 (R/W)  SysTick Current Value Register */
+	volatile uint32_t CALIB;                  /*!< Offset: 0x00C (R/ )  SysTick Calibration Register */
+} SysTick_Type;
+
+#define SCS_BASE            (0xE000E000UL)                            /*!< System Control Space Base Address */
+#define SysTick_BASE        (SCS_BASE +  0x0010UL)                    /*!< SysTick Base Address */
+#define SysTick             ((SysTick_Type   *)     SysTick_BASE  )   /*!< SysTick configuration struct */
+
+/* SysTick Control / Status Register Definitions */
+#define SysTick_CTRL_COUNTFLAG_Pos         16U                                            /*!< SysTick CTRL: COUNTFLAG Position */
+#define SysTick_CTRL_COUNTFLAG_Msk         (1UL << SysTick_CTRL_COUNTFLAG_Pos)            /*!< SysTick CTRL: COUNTFLAG Mask */
+
+#define SysTick_CTRL_CLKSOURCE_Pos          2U                                            /*!< SysTick CTRL: CLKSOURCE Position */
+#define SysTick_CTRL_CLKSOURCE_Msk         (1UL << SysTick_CTRL_CLKSOURCE_Pos)            /*!< SysTick CTRL: CLKSOURCE Mask */
+
+#define SysTick_CTRL_TICKINT_Pos            1U                                            /*!< SysTick CTRL: TICKINT Position */
+#define SysTick_CTRL_TICKINT_Msk           (1UL << SysTick_CTRL_TICKINT_Pos)              /*!< SysTick CTRL: TICKINT Mask */
+
+#define SysTick_CTRL_ENABLE_Pos             0U                                            /*!< SysTick CTRL: ENABLE Position */
+#define SysTick_CTRL_ENABLE_Msk            (1UL /*<< SysTick_CTRL_ENABLE_Pos*/)           /*!< SysTick CTRL: ENABLE Mask */
+
+/* SysTick Reload Register Definitions */
+#define SysTick_LOAD_RELOAD_Pos             0U                                            /*!< SysTick LOAD: RELOAD Position */
+#define SysTick_LOAD_RELOAD_Msk            (0xFFFFFFUL /*<< SysTick_LOAD_RELOAD_Pos*/)    /*!< SysTick LOAD: RELOAD Mask */
+
+/* SysTick Current Register Definitions */
+#define SysTick_VAL_CURRENT_Pos             0U                                            /*!< SysTick VAL: CURRENT Position */
+#define SysTick_VAL_CURRENT_Msk            (0xFFFFFFUL /*<< SysTick_VAL_CURRENT_Pos*/)    /*!< SysTick VAL: CURRENT Mask */
+
+uint32_t systick_setup(uint32_t ticks)
+{
+	if ((ticks - 1UL) > SysTick_LOAD_RELOAD_Msk)
+	{
+		return (1UL);                                                   /* Reload value impossible */
+	}
+
+	SysTick->LOAD  = (uint32_t)(ticks - 1UL);                         /* set reload register */
+	SysTick->VAL   = 0UL;                                             /* Load the SysTick Counter Value */
+	SysTick->CTRL  = SysTick_CTRL_CLKSOURCE_Msk |
+				   SysTick_CTRL_TICKINT_Msk   |
+				   SysTick_CTRL_ENABLE_Msk;                         /* Enable SysTick IRQ and SysTick Timer */
+
+	return (0UL);                                                     /* Function successful */
+}
+
+bool validate_checksum(const uint32_t * const image, unsigned size)
+{
 	// Do some simple XOR checking
 	uint32_t xorv = 0xB4DC0FEE;
 	for (unsigned i = 0; i < size; i++)
@@ -397,17 +465,19 @@ bool validate_checksum(const uint32_t * const image, unsigned size) {
 	return xorv == 0;
 }
 
-int main(void) {
+int main(void)
+{
 	/* Boot the application if it seems valid and we haven't been
 	 * asked to reboot into DFU mode. This should make the CPU to
 	 * boot into DFU if the user app has been erased. */
 
-	#ifdef ENABLE_WRITEPROT
+#ifdef ENABLE_WRITEPROT
 	// On every boot we check the FLASH WPR bits and proceed to protect
 	// the bootloader if it's unprotected. This requires a reset.
 	// If the device was DFU-rebooted we skip this check, to allow for
 	// bootloader updates.
-	if (!rebooted_into_updater() && (FLASH_WRPR & 1)) {
+	if (!rebooted_into_updater() && (FLASH_WRPR & 1))
+	{
 		// Make a copy of the opt bytes so that we only modify what we need to.
 		uint16_t opt[8];
 		memcpy(&opt[0], (uint16_t*)FLASH_OPT_BYTES, sizeof(opt));
@@ -424,11 +494,12 @@ int main(void) {
 
 		_full_system_reset();
 	}
-	#endif
+#endif
 
-	#ifdef ENABLE_PROTECTIONS
+#ifdef ENABLE_PROTECTIONS
 	// Check for RDP protection, and in case it's not enabled, do it!
-	if (!(FLASH_OBR & 0x2)) {
+	if (!(FLASH_OBR & 0x2))
+	{
 		// Read protection NOT enabled -> Enable it and reboot
 		uint16_t opt[8];
 		memcpy(&opt[0], (uint16_t*)FLASH_OPT_BYTES, sizeof(opt));
@@ -448,41 +519,41 @@ int main(void) {
 	// Disable JTAG and SWD to prevent debugging/readout
 	volatile uint32_t *_AFIO_MAPR = (uint32_t*)0x40010004U;
 	*_AFIO_MAPR = (*_AFIO_MAPR & ~(0x7 << 24)) | (0x4 << 24);
-	#endif
+#endif
 
-	#ifdef ENABLE_CHECKSUM
+#ifdef ENABLE_CHECKSUM
 	const uint32_t start_addr = 0x08000000 + (FLASH_BOOTLDR_SIZE_KB*1024);
 	const uint32_t * const base_addr = (uint32_t*)start_addr;
 	uint32_t imagesize = base_addr[0x20 / 4];
-	#else
+#else
 	uint32_t imagesize = 0;
 	#endif
 
 	int go_dfu = rebooted_into_dfu() ||
-	#ifdef ENABLE_PINRST_DFU_BOOT
+#ifdef ENABLE_PINRST_DFU_BOOT
 	             reset_due_to_pin() ||
-	#endif
-	#ifdef ENABLE_WATCHDOG
+#endif
+#ifdef ENABLE_WATCHDOG
 	             reset_due_to_watchdog() ||
-	#endif
+#endif
 	             imagesize > FLASH_BOOTLDR_PAYLOAD_SIZE_KB*1024/4 ||
 	             force_dfu_gpio();
 
 	RCC_CSR |= RCC_CSR_RMVF;
 
-	if (!go_dfu &&
-	   (*(volatile uint32_t *)APP_ADDRESS & 0x2FFE0000) == 0x20000000) {
+	if (!go_dfu && (*(volatile uint32_t *)APP_ADDRESS & 0x2FFE0000) == 0x20000000)
+	{
 
-		#ifdef ENABLE_CHECKSUM
+#ifdef ENABLE_CHECKSUM
 		if (validate_checksum(base_addr, imagesize))
-		#endif
+#endif
 		{
 			// Clear flags
 			clear_reboot_flags();
-			#ifdef ENABLE_WATCHDOG
+#ifdef ENABLE_WATCHDOG
 			// Enable the watchdog
 			enable_iwdg(4096 * ENABLE_WATCHDOG / 26);
-			#endif
+#endif
 			// Set vector table base address.
 			volatile uint32_t *_csb_vtor = (uint32_t*)0xE000ED08U;
 			*_csb_vtor = APP_ADDRESS & 0xFFFF;
@@ -493,6 +564,7 @@ int main(void) {
 		}
 	}
 
+	systick_setup(100000);
 	clock_setup_in_hse_8mhz_out_72mhz();
 
 	/* Disable USB peripheral as it overrides GPIO settings */
@@ -519,24 +591,23 @@ int main(void) {
 	gpio_set(GPIOC, 14);
 	gpio_set(GPIOC, 15);
 
-	unsigned int cnt = 0;
-	unsigned int state = 1;
+	uint32_t cnt = 500;
+	uint8_t state = 1;
 
 	while (1)
 	{
-		cnt++;
-		if(cnt > 1000)
+		if(cnt < systick_get())
 		{
-			cnt = 0;
+			cnt = systick_get() + 500;
 
 			if(state)
 			{
-				gpio_clear(GPIOC, 14);
+				gpio_set(GPIOC, 14);
 				gpio_clear(GPIOC, 15);
 			}
 			else
 			{
-				gpio_set(GPIOC, 14);
+				gpio_clear(GPIOC, 14);
 				gpio_set(GPIOC, 15);
 			}
 			state = !state;
@@ -550,7 +621,8 @@ int main(void) {
 
 // Implement this here to save space, quite minimalistic :D
 __attribute__((used))
-void *memcpy(void * dst, const void * src, size_t count) {
+void *memcpy(void * dst, const void * src, size_t count)
+{
 	uint8_t * dstb = (uint8_t*)dst;
 	uint8_t * srcb = (uint8_t*)src;
 	while (count--)

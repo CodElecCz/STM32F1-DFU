@@ -23,7 +23,8 @@ typedef struct {
 } vector_table_t;
 
 // A handler that does nothing, we use no interrupts
-void null_handler(void) {
+void null_handler(void)
+{
 	while (1);
 }
 
@@ -32,12 +33,14 @@ typedef void (*funcp_t) (void);
 
 void main(void);
 
-void __attribute__ ((naked)) reset_handler(void) {
+void __attribute__ ((naked)) reset_handler(void)
+{
 	volatile unsigned *src, *dest;
 
 	for (src = &_data_loadaddr, dest = &_data;
 		dest < &_edata;
-		src++, dest++) {
+		src++, dest++)
+	{
 		*dest = *src;
 	}
 
@@ -53,6 +56,17 @@ void __attribute__ ((naked)) reset_handler(void) {
 	main();
 }
 
+static volatile uint32_t systick = 0;
+void systick_handler()
+{
+	systick++;
+}
+
+uint32_t systick_get()
+{
+	return systick;
+}
+
 // Vector table (bare minimal one)
 __attribute__ ((section(".vectors")))
 vector_table_t vector_table = {
@@ -66,6 +80,6 @@ vector_table_t vector_table = {
 	.debug_monitor = null_handler,
 	.sv_call = null_handler,
 	.pend_sv = null_handler,
-	.systick = null_handler,
+	.systick = systick_handler,
 };
 
