@@ -12,7 +12,7 @@ STM32F103 DFU bootloader
 MEMORY
 {
 	rom (rx) : ORIGIN = 0x08000000, LENGTH = 4K
-	/* Reserve the last 8 bytes of RAM to save info across reboots */
+	/* Reserve the last 4 bytes of RAM to save info across reboots */
 	ram (rwx) : ORIGIN = 0x20000000, LENGTH = 20k - 4
 }
 ```
@@ -26,7 +26,7 @@ MEMORY
 MEMORY
 {
 	rom (rx) : ORIGIN = 0x08000000, LENGTH = 8K
-	/* Reserve the last 8 bytes of RAM to save info across reboots */
+	/* Reserve the last 4 bytes of RAM to save info across reboots */
 	ram (rwx) : ORIGIN = 0x20000000, LENGTH = 20k - 4
 }
 ```
