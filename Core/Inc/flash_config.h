@@ -14,7 +14,11 @@
 #define ENABLE_CHECKSUM					1
 #define ENABLE_SPI_SRAM_IMAGE			1
 
+#if !(ENABLE_SPI_SRAM_IMAGE)
 #define VERSION		"01.00"
+#else
+#define VERSION		"02.00"
+#endif
 
 /* Default chunk size (in bytes) used by streaming/read-in-chunks helpers.
  * Must be a multiple of 4. Can be overridden in a board header or via
