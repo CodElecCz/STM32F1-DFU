@@ -114,23 +114,88 @@ void usb_init() {
 
 static void st_usbfs_copy_to_pm(volatile void *vPM, const void *buf, uint16_t len)
 {
-	const uint16_t *lbuf = buf;
-	volatile uint32_t *PM = vPM;
-	for (len = (len + 1) >> 1; len; len--)
-		*PM++ = *lbuf++;
+    const uint8_t *src = (const uint8_t *)buf;
+    /* PMA on STM32 USB FS is accessed as 16-bit words where each word is
+     * stored in even address slots; consecutive logical words are separated
+     * by a 16-bit reserved slot. The drivers therefore write 16-bit values
+     * and advance the PMA pointer by 2 each time.
+     */
+    volatile uint16_t *PM = (volatile uint16_t *)vPM;
+
+    if (!len)
+        return;
+
+    uint16_t words = len >> 1; /* number of full 16-bit words */
+
+    /* Copy full 16-bit words. Unroll loop to copy two words per iteration
+     * to reduce loop overhead and improve throughput on small embedded
+     * CPUs without enabling risky 32-bit wide writes into PMA.
+     */
+    while (words >= 2) {
+        uint16_t w0 = (uint16_t)src[0] | ((uint16_t)src[1] << 8);
+        uint16_t w1 = (uint16_t)src[2] | ((uint16_t)src[3] << 8);
+
+        *PM = w0;
+        PM += 2;
+        *PM = w1;
+        PM += 2;
+
+        src += 4;
+        words -= 2;
+    }
+
+    /* Copy remaining single 16-bit word if present */
+    if (words) {
+        uint16_t w = (uint16_t)src[0] | ((uint16_t)src[1] << 8);
+        *PM = w;
+        PM += 2;
+        src += 2;
+    }
+
+    /* If there's an odd trailing byte, write it as a 16-bit word with the
+     * high byte zeroed. This matches the behaviour expected by the PMA
+     * layout and other code in this file which reads an odd trailing byte
+     * using a byte read from the PMA.
+     */
+    if (len & 1) {
+        uint16_t w = (uint16_t)src[0];
+        *PM = w;
+    }
 }
 
 static void st_usbfs_copy_from_pm(void *buf, const volatile void *vPM, uint16_t len)
 {
-	uint16_t *lbuf = buf;
-	const volatile uint16_t *PM = vPM;
-	uint8_t odd = len & 1;
+    uint16_t *dst = (uint16_t *)buf;
+    const volatile uint16_t *PM = (const volatile uint16_t *)vPM;
 
-	for (len >>= 1; len; PM += 2, lbuf++, len--)
-		*lbuf = *PM;
+    uint16_t words = len >> 1;
 
-	if (odd)
-		*(uint8_t *) lbuf = *(uint8_t *) PM;
+    /* Copy two 16-bit words per iteration to reduce loop overhead and
+     * minimize volatile memory accesses. PMA logical words live in every
+     * other 16-bit slot, so consecutive logical words are at PM, PM+2, PM+4, ...
+     */
+    while (words >= 2) {
+        uint16_t w0 = PM[0];      /* first logical word */
+        uint16_t w1 = PM[2];      /* second logical word (skip reserved slot) */
+
+        dst[0] = w0;
+        dst[1] = w1;
+
+        PM += 4; /* advanced by two logical words (each separated by a reserved slot) */
+        dst += 2;
+        words -= 2;
+    }
+
+    /* Handle remaining single 16-bit word, if any. */
+    if (words) {
+        *dst++ = PM[0];
+        PM += 2; /* move PM to the slot after the last full word for possible odd tail */
+    }
+
+    /* If there's an odd trailing byte, read the low byte from current PM address. */
+    if (len & 1) {
+        *(uint8_t *)dst = *(const volatile uint8_t *)PM;
+    }
 }
 
 static uint16_t _usbd_ep_write_packet(uint8_t addr, const void *buf, uint16_t len)
@@ -700,5 +765,3 @@ void do_usb_poll()
 
 	*USB_CNTR_REG &= ~USB_CNTR_SOFM;
 }
-
-
