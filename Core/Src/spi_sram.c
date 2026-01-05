@@ -1,13 +1,8 @@
 #include "spi_sram.h"
 #include "gpio.h"
+#include "board.h"
 #include <stddef.h>
 #include <stdint.h>
-
-#define SPI_SRAM_PORT        1  // GPIO port number (0=A, 1=B, 2=C, etc.)
-#define SPI_SRAM_SCK_PIN     13 // SCK pin number (0..15)
-#define SPI_SRAM_MOSI_PIN    15 // MOSI pin number (0..15)
-#define SPI_SRAM_MISO_PIN    14 // MISO pin number (0..15)
-#define SPI_SRAM_CS_PIN      12 // CS pin number (0..15)
 
 // Small delay for bit-bang timing. Tunable as needed for target speed.
 static void spi_sram_delay(void)

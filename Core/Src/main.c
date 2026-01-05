@@ -24,6 +24,7 @@
 #include "reboot.h"
 #include "flash.h"
 #include "watchdog.h"
+#include "board.h"
 
 /* Commands sent with wBlockNum == 0 as per ST implementation. */
 #define CMD_SETADDR	0x21
