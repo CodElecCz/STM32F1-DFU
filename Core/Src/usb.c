@@ -25,7 +25,7 @@
 #include "flash_config.h"
 #include "usb.h"
 
-// Defined in main
+// Defined in usbdfu
 extern uint8_t usbd_control_buffer[DFU_TRANSFER_SIZE];
 extern const char * const _usb_strings[5];
 extern enum usbd_request_return_codes

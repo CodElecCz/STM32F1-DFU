@@ -1,3 +1,5 @@
+#ifndef __USB_H
+#define __USB_H
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -507,5 +509,5 @@ do {									\
 void usb_init();
 void do_usb_poll();
 
-
+#endif // __USB_H
 
