@@ -20,9 +20,11 @@
 /* Define memory regions. */
 MEMORY
 {
-	rom (rx) : ORIGIN = 0x08000000, LENGTH = 8K
-	/* Reserve the last 8 bytes of RAM to save info across reboots */
-	ram (rwx) : ORIGIN = 0x20000000, LENGTH = 20k - 4
+	/* Keep ROM length small (bootloader) — 8KB = 0x2000 */
+	rom (rx) : ORIGIN = 0x08000000, LENGTH = 0x2000
+	/* Reserve the last 8 bytes of RAM to save info across reboots: 20KB RAM = 0x5000
+	 * RAM available to the program = 0x5000 - 8 = 0x4FF8 */
+	ram (rwx) : ORIGIN = 0x20000000, LENGTH = 0x4FF8
 }
 
 /* Enforce emission of the vector table. */
@@ -35,10 +37,10 @@ ENTRY(reset_handler)
 SECTIONS
 {
 	.text : {
-		*(.vectors)	/* Vector table */
-		*(.text*)	/* Program code */
+		KEEP(*(.vectors)) /* Vector table - ensure it's kept */
+		*(.text*)
 		. = ALIGN(4);
-		*(.rodata*)	/* Read-only data */
+		*(.rodata*)
 		. = ALIGN(4);
 	} >rom
 
@@ -46,23 +48,20 @@ SECTIONS
 
 	.data : {
 		_data = .;
-		*(.data*)	/* Read-write initialized data */
+		*(.data*)
 		. = ALIGN(4);
 		_edata = .;
 	} >ram AT >rom
 	_data_loadaddr = LOADADDR(.data);
 
 	.bss : {
-		*(.bss*)	/* Read-write zero initialized data */
+		*(.bss*)
 		*(COMMON)
 		. = ALIGN(4);
 		_ebss = .;
 	} >ram
 
-	/*
-	 * The .eh_frame section appears to be used for C++ exception handling.
-	 * You may need to fix this if you're using C++.
-	 */
+	/* Discard exception frame metadata (C++ not used in this project) */
 	/DISCARD/ : { *(.eh_frame) }
 
 	. = ALIGN(4);
@@ -70,5 +69,4 @@ SECTIONS
 }
 
 PROVIDE(_stack = ORIGIN(ram) + LENGTH(ram));
-
-
+PROVIDE(_estack = ORIGIN(ram) + LENGTH(ram));
