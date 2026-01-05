@@ -19,15 +19,22 @@ extern "C" {
 
 // Packed header layout stored in SPI SRAM starting at SRAM_IMAGE_HEADER_OFFSET
 // Layout (total 12 bytes):
-// 0-3:  magic
-// 4-7:  offset
-// 8-11: size
+// 0-3:  magic (little-endian)
+// 4-7:  offset (little-endian)
+// 8-11: size (little-endian)
 
 typedef struct __attribute__((packed)) sram_image_header {
     uint32_t magic;
     uint32_t offset;
     uint32_t size;
 } sram_image_header;
+
+// Convert a 32-bit value read directly from SRAM (little-endian) to host-endian
+static inline uint32_t sram_le32(uint32_t v_le)
+{
+    uint8_t *p = (uint8_t*)&v_le;
+    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+}
 
 /**
  * Check whether a valid firmware image (with XOR checksum) is present in

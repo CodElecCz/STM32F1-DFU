@@ -12,6 +12,7 @@
 #define WINUSB_SUPPORT					1
 #define ENABLE_DFU_UPLOAD				1
 #define ENABLE_CHECKSUM					1
+#define ENABLE_SPI_SRAM_IMAGE			1
 
 #define VERSION		"01.00"
 

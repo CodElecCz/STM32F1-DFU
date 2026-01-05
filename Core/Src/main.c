@@ -27,6 +27,11 @@
 #include "board.h"
 #include "checksum.h"
 
+#ifdef ENABLE_SPI_SRAM_IMAGE
+#include "spi_sram.h"
+#include "spi_sram_image.h"
+#endif
+
 /* Commands sent with wBlockNum == 0 as per ST implementation. */
 #define CMD_SETADDR	0x21
 #define CMD_ERASE	0x41
@@ -489,7 +494,59 @@ int main(void)
 	uint32_t imagesize = base_addr[0x20 / 4];
 #else
 	uint32_t imagesize = 0;
-	#endif
+#endif
+
+#ifdef ENABLE_SPI_SRAM_IMAGE
+	// If a valid image is present in SPI SRAM, program it into flash and reset.
+	if (sram_has_valid_image())
+	{
+		sram_image_header hdr;
+		if (spi_sram_read(SRAM_IMAGE_HEADER_OFFSET, &hdr, sizeof(hdr)) == 0)
+		{
+			// Header already validated by sram_has_valid_image(); just decode fields.
+			uint32_t img_offset = sram_le32(hdr.offset);
+			uint32_t img_size   = sram_le32(hdr.size);
+
+			// Program into flash at APP_ADDRESS (assume header checks already done)
+			_flash_unlock();
+			// Erase required pages (1KB pages)
+			for (uint32_t a = APP_ADDRESS; a < APP_ADDRESS + img_size; a += 1024)
+			{
+				if (!_flash_page_is_erased(a))
+					_flash_erase_page(a);
+			}
+
+			// Clear the image header in SPI SRAM to mark it consumed after erasing flash
+			// (prevents re-triggering the flash action if the device resets before programming)
+			{
+				sram_image_header clr = { 0U, 0U, 0U };
+				(void)spi_sram_write(SRAM_IMAGE_HEADER_OFFSET, &clr, sizeof(clr));
+			}
+
+			static uint8_t sram_buf[SRAM_IMAGE_CHUNK_BYTES];
+			uint32_t written = 0;
+			while (written < img_size)
+			{
+				uint32_t toread = img_size - written;
+				if (toread > SRAM_IMAGE_CHUNK_BYTES)
+					toread = SRAM_IMAGE_CHUNK_BYTES;
+
+				if (spi_sram_read(img_offset + written, sram_buf, toread) != 0)
+				{
+					// read failed; abort and continue bootloader
+					break;
+				}
+				// Program buffer (len in bytes)
+				_flash_program_buffer(APP_ADDRESS + written, (uint16_t*)sram_buf, toread);
+				written += toread;
+			}
+
+			// Perform reset to run new firmware
+			clear_reboot_flags();
+			_full_system_reset();
+		}
+	}
+#endif
 
 	int go_dfu = rebooted_into_dfu() ||
 #ifdef ENABLE_PINRST_DFU_BOOT

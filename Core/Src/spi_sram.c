@@ -91,3 +91,33 @@ int spi_sram_read(uint32_t addr, void *buf, uint32_t len)
 
     return 0;
 }
+
+// Write implementation for SPI SRAM (23LCV): sequential WRITE (0x02) command
+int spi_sram_write(uint32_t addr, const void *buf, uint32_t len)
+{
+    if (!buf || !len)
+        return -1;
+
+    spi_sram_hw_init();
+
+    const uint8_t CMD_WRITE = 0x02;
+    const uint8_t *src = (const uint8_t*)buf;
+
+    spi_sram_cs_assert();
+
+    // Send WRITE opcode and 24-bit address (MSB first)
+    (void)spi_sram_xfer_byte(CMD_WRITE);
+    (void)spi_sram_xfer_byte((uint8_t)((addr >> 16) & 0xFF));
+    (void)spi_sram_xfer_byte((uint8_t)((addr >> 8) & 0xFF));
+    (void)spi_sram_xfer_byte((uint8_t)((addr >> 0) & 0xFF));
+
+    // Write data bytes
+    for (uint32_t i = 0; i < len; ++i)
+    {
+        (void)spi_sram_xfer_byte(src[i]);
+    }
+
+    spi_sram_cs_deassert();
+
+    return 0;
+}
