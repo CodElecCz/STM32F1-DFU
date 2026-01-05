@@ -1,14 +1,32 @@
-
-// Stuff copied from libopencm3 and simplified/reworked
-// to make it simpler and fit 4KB
-
+/*
+ * USB Device Firmware Upgrade (DFU) class driver
+ *
+ * Copyright (C) 2011-2014  Antonin B. (Hacker Noon)
+ * Copyright (C) 2019  STMicroelectronics
+ *
+ * This file is part of the libopencm3 project.
+ *
+ * The libopencm3 project is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 2.1 of the License, or (at your
+ * option) any later version.
+ *
+ * The libopencm3 project is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General
+ * Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License along
+ * with the libopencm3 project. If not, see
+ * <http://www.gnu.org/licenses/lgpl-2.1.html>.
+ */
 #include <string.h>
 
 #include "flash_config.h"
 #include "usb.h"
 
 // Defined in main
-extern uint8_t usbd_control_buffer[1024];
+extern uint8_t usbd_control_buffer[DFU_TRANSFER_SIZE];
 extern const char * const _usb_strings[5];
 extern enum usbd_request_return_codes
 usbdfu_control_request(struct usb_setup_data *req,
@@ -112,43 +130,72 @@ void usb_init() {
 #define MIN(a,b) (((a) < (b)) ? (a) : (b))
 #define USBD_PM_TOP 0x40
 
+/* Packet Memory Area (PMA) layout and access notes
+ * -------------------------------------------------
+ * The STM32 USB FS peripheral exposes a dedicated Packet Memory Area
+ * (PMA) which is accessed with 16-bit reads/writes. This driver follows
+ * the same PMA addressing convention used by many STM32 examples:
+ *
+ * - Logical 16-bit data words live in every other 16-bit slot when the
+ *   PMA is viewed as a uint16_t array. Concretely, logical words are at
+ *   PM[0], PM[2], PM[4], ... (when PM is a `uint16_t *`).
+ * - To advance to the next logical PMA word you must add 2 to the
+ *   uint16_t pointer (e.g. PM += 2). The driver therefore uses steps of
+ *   two 16-bit elements for each logical word.
+ * - Odd trailing bytes are handled by reading/writing the low byte of
+ *   the subsequent PMA word. That is, for an odd-length transfer the
+ *   final leftover byte is stored in the low 8 bits of the next PMA
+ *   16-bit location.
+ * - Accesses to PMA must use volatile-qualified pointers so the
+ *   compiler does not optimize or reorder the hardware memory accesses.
+ * - The caller should pass PMA buffer pointers obtained via the
+ *   USB_GET_EP_*_BUFF macros (these yield the correct PMA addresses
+ *   used throughout this driver).
+ *
+ * These conventions are preserved by `st_usbfs_copy_to_pm` and
+ * `st_usbfs_copy_from_pm` below; do not change the pointer arithmetic
+ * unless you also update all PMA buffer setup and endpoint code.
+ */
+
+/* Helper: compute pointer to logical PMA word index
+ * PMA stores logical words every other uint16_t slot. Use index-based
+ * access where `index` is the logical word number (0..N-1).
+ */
+#define PMA_WORD(base, index) (*((volatile uint16_t *)(base) + ((index) << 1)))
+#define PMA_WORD_CONST(base, index) (*((const volatile uint16_t *)(base) + ((index) << 1)))
+
 static void st_usbfs_copy_to_pm(volatile void *vPM, const void *buf, uint16_t len)
 {
     const uint8_t *src = (const uint8_t *)buf;
-    /* PMA on STM32 USB FS is accessed as 16-bit words where each word is
-     * stored in even address slots; consecutive logical words are separated
-     * by a 16-bit reserved slot. The drivers therefore write 16-bit values
-     * and advance the PMA pointer by 2 each time.
-     */
-    volatile uint16_t *PM = (volatile uint16_t *)vPM;
+    volatile void *pma_base = vPM;
 
     if (!len)
         return;
 
     uint16_t words = len >> 1; /* number of full 16-bit words */
+    uint16_t idx = 0; /* logical PMA word index */
 
     /* Copy full 16-bit words. Unroll loop to copy two words per iteration
      * to reduce loop overhead and improve throughput on small embedded
-     * CPUs without enabling risky 32-bit wide writes into PMA.
+     * CPUs.
      */
     while (words >= 2) {
         uint16_t w0 = (uint16_t)src[0] | ((uint16_t)src[1] << 8);
         uint16_t w1 = (uint16_t)src[2] | ((uint16_t)src[3] << 8);
 
-        *PM = w0;
-        PM += 2;
-        *PM = w1;
-        PM += 2;
+        PMA_WORD(pma_base, idx) = w0;
+        PMA_WORD(pma_base, idx + 1) = w1;
 
         src += 4;
+        idx += 2;
         words -= 2;
     }
 
     /* Copy remaining single 16-bit word if present */
     if (words) {
         uint16_t w = (uint16_t)src[0] | ((uint16_t)src[1] << 8);
-        *PM = w;
-        PM += 2;
+        PMA_WORD(pma_base, idx) = w;
+        idx += 1;
         src += 2;
     }
 
@@ -159,42 +206,45 @@ static void st_usbfs_copy_to_pm(volatile void *vPM, const void *buf, uint16_t le
      */
     if (len & 1) {
         uint16_t w = (uint16_t)src[0];
-        *PM = w;
+        PMA_WORD(pma_base, idx) = w;
     }
 }
 
 static void st_usbfs_copy_from_pm(void *buf, const volatile void *vPM, uint16_t len)
 {
     uint16_t *dst = (uint16_t *)buf;
-    const volatile uint16_t *PM = (const volatile uint16_t *)vPM;
-
+    const volatile void *pma_base = vPM;
     uint16_t words = len >> 1;
+    uint16_t idx = 0; /* logical PMA word index */
 
     /* Copy two 16-bit words per iteration to reduce loop overhead and
-     * minimize volatile memory accesses. PMA logical words live in every
-     * other 16-bit slot, so consecutive logical words are at PM, PM+2, PM+4, ...
+     * minimize volatile memory accesses.
      */
     while (words >= 2) {
-        uint16_t w0 = PM[0];      /* first logical word */
-        uint16_t w1 = PM[2];      /* second logical word (skip reserved slot) */
+        uint16_t w0 = PMA_WORD_CONST(pma_base, idx);
+        uint16_t w1 = PMA_WORD_CONST(pma_base, idx + 1);
 
         dst[0] = w0;
         dst[1] = w1;
 
-        PM += 4; /* advanced by two logical words (each separated by a reserved slot) */
         dst += 2;
+        idx += 2;
         words -= 2;
     }
 
     /* Handle remaining single 16-bit word, if any. */
     if (words) {
-        *dst++ = PM[0];
-        PM += 2; /* move PM to the slot after the last full word for possible odd tail */
+        *dst++ = PMA_WORD_CONST(pma_base, idx);
+        idx += 1;
     }
 
     /* If there's an odd trailing byte, read the low byte from current PM address. */
     if (len & 1) {
-        *(uint8_t *)dst = *(const volatile uint8_t *)PM;
+        /* Read the low byte of the next logical PMA word. Cast via byte
+         * pointer to ensure we read the low 8 bits only.
+         */
+        const volatile uint8_t *bytep = (const volatile uint8_t *)(((const volatile uint16_t *)pma_base) + (idx << 1));
+        *(uint8_t *)dst = *bytep;
     }
 }
 
@@ -568,7 +618,7 @@ static void _usb_control_setup_read()
 static void _usb_control_setup_write()
 {
 	// Stall EP if we have too much data?
-	if (usb_req.wLength > sizeof(usbd_control_buffer))
+	if (usb_req.wLength > DFU_TRANSFER_SIZE)
 	{
 		_stall_transaction();
 		return;
