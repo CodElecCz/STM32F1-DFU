@@ -8,12 +8,30 @@
 extern "C" {
 #endif
 
+// Header location (same base as previous implementation)
+#define SRAM_IMAGE_HEADER_OFFSET 0x00
+// Expected magic value in header (uint32_t, little-endian in storage)
+#ifndef SRAM_IMAGE_MAGIC
+// Use a repeated pattern as a distinctive 32-bit magic. You can override this
+// in a board header if you prefer a different magic value.
+#define SRAM_IMAGE_MAGIC 0xA5A5A5A5U
+#endif
+
+// Packed header layout stored in SPI SRAM starting at SRAM_IMAGE_HEADER_OFFSET
+// Layout (total 12 bytes):
+// 0-3:  magic
+// 4-7:  offset
+// 8-11: size
+
+typedef struct __attribute__((packed)) sram_image_header {
+    uint32_t magic;
+    uint32_t offset;
+    uint32_t size;
+} sram_image_header;
+
 /**
  * Check whether a valid firmware image (with XOR checksum) is present in
- * external SPI SRAM. The SRAM layout expected:
- *  - word at offset 0x20 contains the image size in 32-bit words
- *  - following that, the image contains `imagesize` 32-bit words whose XOR
- *    with initial value 0xB4DC0FEE must equal 0
+ * external SPI SRAM.
  *
  * @return true if a valid image is detected, false otherwise.
  */
