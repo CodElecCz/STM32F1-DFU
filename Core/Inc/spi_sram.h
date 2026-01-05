@@ -15,6 +15,8 @@ extern "C" {
 #define SRAM_IMAGE_CHUNK_BYTES 256
 #endif
 
+void spi_sram_hw_init();
+
 /**
  * Read data from external SPI SRAM.
  * @param addr Byte address inside the SRAM to read from.

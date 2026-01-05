@@ -497,6 +497,10 @@ int main(void)
 #endif
 
 #ifdef ENABLE_SPI_SRAM_IMAGE
+	spi_sram_hw_init();
+
+	//int spi_check = spi_sram_self_test();
+
 	// If a valid image is present in SPI SRAM, program it into flash and reset.
 	if (sram_has_valid_image())
 	{
