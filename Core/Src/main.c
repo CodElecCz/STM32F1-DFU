@@ -25,6 +25,7 @@
 #include "flash.h"
 #include "watchdog.h"
 #include "board.h"
+#include "checksum.h"
 
 /* Commands sent with wBlockNum == 0 as per ST implementation. */
 #define CMD_SETADDR	0x21
@@ -421,17 +422,10 @@ uint32_t systick_setup(uint32_t ticks)
 	return (0UL);                                                     /* Function successful */
 }
 
-bool validate_checksum(const uint32_t * const image, unsigned size)
-{
-	// Do some simple XOR checking
-	uint32_t xorv = 0xB4DC0FEE;
-	for (unsigned i = 0; i < size; i++)
-		xorv ^= image[i];
-
-	return xorv == 0;
-}
-
 uint32_t systick_get();
+
+// validate_checksum implemented in Core/Src/checksum.c
+// bool validate_checksum(const uint32_t * const image, unsigned size);
 
 int main(void)
 {
