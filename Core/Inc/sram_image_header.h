@@ -34,9 +34,9 @@ static inline uint32_t sram_le32(uint32_t v_le)
 #define SRAM_IMAGE_HEADER_OFFSET 0x00
 // Expected magic value in header (uint32_t, little-endian in storage)
 #ifndef SRAM_IMAGE_MAGIC
-// Use a repeated pattern as a distinctive 32-bit magic. You can override this
-// in a board header if you prefer a different magic value.
-#define SRAM_IMAGE_MAGIC 0xA5A5A5A5U
+// Default magic uses the ASCII bytes 'S','R','A','M' stored little-endian.
+// Value: 0x4D414253
+#define SRAM_IMAGE_MAGIC 0x4D414253U
 #endif
 
 #ifdef __cplusplus
