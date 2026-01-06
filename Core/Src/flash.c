@@ -16,9 +16,23 @@
 #define FLASH_CR      (*(volatile uint32_t*)0x40022010U)
 #define FLASH_AR      (*(volatile uint32_t*)0x40022014U)
 
+#define _flash_wait_for_last_operation() \
+	/* 1 cycle wait, see STM32 errata */ \
+	do {                                 \
+		__asm__ volatile("nop");         \
+	} while (FLASH_SR & FLASH_SR_BSY);
+
 void _flash_lock() {
-	// Clear the unlock state.
+	// Ensure any ongoing flash operation has finished
+	_flash_wait_for_last_operation();
+
+	// Disable option bytes write enable (if set) and lock the FLASH control
+	FLASH_CR &= ~FLASH_CR_OPTWRE;
+	// Set the LOCK bit to protect the FLASH registers from write/erase
 	FLASH_CR |= FLASH_CR_LOCK;
+
+	// Wait for the write to take effect
+	_flash_wait_for_last_operation();
 }
 
 void _flash_unlock() {
@@ -29,12 +43,6 @@ void _flash_unlock() {
 		FLASH_KEYR = 0xcdef89abU;
 	}
 }
-
-#define _flash_wait_for_last_operation() \
-	/* 1 cycle wait, see STM32 errata */ \
-	do {                                 \
-		__asm__ volatile("nop");         \
-	} while (FLASH_SR & FLASH_SR_BSY);
 
 void _flash_erase_page(uint32_t page_address) {
 	_flash_wait_for_last_operation();
